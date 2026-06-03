@@ -1,0 +1,777 @@
+import sys
+
+from PyQt6.QtWidgets import (
+    QApplication,
+    QMainWindow,
+    QVBoxLayout,
+    QMessageBox,
+    QInputDialog
+)
+
+from db import get_connection, show_error
+from demo_4.main_window_ui import Ui_MainWindow
+from product_card import ProductCard
+from order_card import OrderCard
+
+
+class AdminWin(QMainWindow, Ui_MainWindow):
+    def __init__(self, user=None):
+        super().__init__()
+        self.setupUi(self)
+
+        if user is None:
+            user = (0, "Тестовый", "Админ", "", "Администратор")
+
+        self.user = user
+        self.selected_product = None
+        self.selected_order = None
+
+        self.products_layout = QVBoxLayout(self.scrollAreaWidgetContents)
+        self.orders_layout = QVBoxLayout(self.scrollAreaWidgetContents_orders)
+
+        self.setup_ui_data()
+        self.init_signals()
+
+        self.load_products()
+        self.load_orders()
+
+    def db_query(self, query, params=(), commit=False):
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute(query, params)
+
+        if commit:
+            conn.commit()
+            cur.close()
+            conn.close()
+            return None
+
+        rows = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return rows
+
+    def setup_ui_data(self):
+        try:
+            self.label_user.setText(f"{self.user[1]} {self.user[2]} {self.user[3]}")
+            self.label_role.setText(self.user[4])
+
+            self.comboBox_sort.clear()
+            self.comboBox_sort.addItems([
+                "Без сортировки",
+                "По количеству по возрастанию",
+                "По количеству по убыванию"
+            ])
+
+            self.comboBox_supplier.clear()
+            self.comboBox_supplier.addItem("Все поставщики", 0)
+
+            suppliers = self.db_query("""
+                SELECT supplier_id, supplier_name
+                FROM suppliers
+                ORDER BY supplier_name
+            """)
+
+            for supplier in suppliers:
+                self.comboBox_supplier.addItem(supplier[1], supplier[0])
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке данных интерфейса")
+
+    def init_signals(self):
+        self.lineEdit_search.textChanged.connect(self.load_products)
+        self.comboBox_supplier.currentIndexChanged.connect(self.load_products)
+        self.comboBox_sort.currentIndexChanged.connect(self.load_products)
+
+        self.pushButton_refresh.clicked.connect(self.refresh_products)
+        self.pushButton_add.clicked.connect(self.add_product)
+        self.pushButton_edit.clicked.connect(self.edit_product)
+        self.pushButton_delete.clicked.connect(self.delete_product)
+
+        self.pushButton_refresh_orders.clicked.connect(self.load_orders)
+        self.pushButton_add_order.clicked.connect(self.add_order)
+        self.pushButton_edit_order.clicked.connect(self.edit_order)
+        self.pushButton_delete_order.clicked.connect(self.delete_order)
+
+        self.pushButton_exit.clicked.connect(self.close)
+
+    def clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def ask_text(self, title, label, value=""):
+        text, ok = QInputDialog.getText(self, title, label, text=str(value))
+        return text.strip() if ok else None
+
+    def ask_int(self, title, label, value=0, min_v=0, max_v=100000):
+        num, ok = QInputDialog.getInt(self, title, label, int(value), min_v, max_v)
+        return num if ok else None
+
+    def ask_float(self, title, label, value=0):
+        num, ok = QInputDialog.getDouble(
+            self,
+            title,
+            label,
+            float(value),
+            0,
+            1000000,
+            2
+        )
+        return num if ok else None
+
+    def choose_from_table(self, title, query):
+        rows = self.db_query(query)
+
+        if not rows:
+            QMessageBox.warning(self, "Ошибка", "Нет данных для выбора")
+            return None
+
+        names = [row[1] for row in rows]
+
+        value, ok = QInputDialog.getItem(
+            self,
+            title,
+            "Выберите значение:",
+            names,
+            0,
+            False
+        )
+
+        if not ok:
+            return None
+
+        for row in rows:
+            if row[1] == value:
+                return row[0]
+
+        return None
+
+    def load_products(self):
+        try:
+            self.clear_layout(self.products_layout)
+            self.selected_product = None
+
+            search = self.lineEdit_search.text().strip()
+            supplier_id = self.comboBox_supplier.currentData()
+            sort_text = self.comboBox_sort.currentText()
+
+            query = """
+                SELECT
+                    p.product_id,
+                    c.category_name,
+                    p.product_name,
+                    p.product_description,
+                    m.manufacturer_name,
+                    s.supplier_name,
+                    p.price,
+                    p.stock_quantity,
+                    u.unit_name,
+                    p.discount,
+                    p.image_path
+                FROM products p
+                JOIN categories c ON c.category_id = p.category_id
+                JOIN manufacturers m ON m.manufacturer_id = p.manufacturer_id
+                JOIN suppliers s ON s.supplier_id = p.supplier_id
+                JOIN units u ON u.unit_id = p.unit_id
+                WHERE 1=1
+            """
+
+            params = []
+
+            if search:
+                query += """
+                    AND (
+                        p.product_name LIKE %s
+                        OR p.product_description LIKE %s
+                        OR p.article LIKE %s
+                        OR c.category_name LIKE %s
+                        OR m.manufacturer_name LIKE %s
+                        OR s.supplier_name LIKE %s
+                    )
+                """
+                text = f"%{search}%"
+                params.extend([text, text, text, text, text, text])
+
+            if supplier_id != 0:
+                query += " AND p.supplier_id = %s"
+                params.append(supplier_id)
+
+            if sort_text == "По количеству по возрастанию":
+                query += " ORDER BY p.stock_quantity ASC"
+            elif sort_text == "По количеству по убыванию":
+                query += " ORDER BY p.stock_quantity DESC"
+            else:
+                query += " ORDER BY p.product_id"
+
+            products = self.db_query(query, params)
+
+            for product in products:
+                card = ProductCard(product, self)
+                self.products_layout.addWidget(card)
+
+            self.products_layout.addStretch()
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке товаров")
+
+    def refresh_products(self):
+        self.lineEdit_search.clear()
+        self.comboBox_supplier.setCurrentIndex(0)
+        self.comboBox_sort.setCurrentIndex(0)
+        self.load_products()
+
+    def select_product_card(self, card):
+        self.selected_product = card
+
+    def add_product(self):
+        try:
+            article = self.ask_text("Добавление товара", "Артикул:")
+            if article is None:
+                return
+
+            name = self.ask_text("Добавление товара", "Название товара:")
+            if name is None:
+                return
+
+            desc = self.ask_text("Добавление товара", "Описание:")
+            if desc is None:
+                return
+
+            price = self.ask_float("Добавление товара", "Цена:")
+            if price is None:
+                return
+
+            quantity = self.ask_int("Добавление товара", "Количество на складе:")
+            if quantity is None:
+                return
+
+            discount = self.ask_int("Добавление товара", "Скидка:", 0, 0, 100)
+            if discount is None:
+                return
+
+            img = self.ask_text("Добавление товара", "Фото товара, например 1.jpg:", "")
+            if img is None:
+                return
+
+            unit_id = self.choose_from_table(
+                "Единица измерения",
+                "SELECT unit_id, unit_name FROM units"
+            )
+            if unit_id is None:
+                return
+
+            category_id = self.choose_from_table(
+                "Категория товара",
+                "SELECT category_id, category_name FROM categories"
+            )
+            if category_id is None:
+                return
+
+            manufacturer_id = self.choose_from_table(
+                "Производитель",
+                "SELECT manufacturer_id, manufacturer_name FROM manufacturers"
+            )
+            if manufacturer_id is None:
+                return
+
+            supplier_id = self.choose_from_table(
+                "Поставщик",
+                "SELECT supplier_id, supplier_name FROM suppliers"
+            )
+            if supplier_id is None:
+                return
+
+            self.db_query("""
+                INSERT INTO products
+                (
+                    article,
+                    product_name,
+                    product_description,
+                    price,
+                    stock_quantity,
+                    discount,
+                    image_path,
+                    unit_id,
+                    category_id,
+                    manufacturer_id,
+                    supplier_id
+                )
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (
+                article,
+                name,
+                desc,
+                price,
+                quantity,
+                discount,
+                img,
+                unit_id,
+                category_id,
+                manufacturer_id,
+                supplier_id
+            ), True)
+
+            QMessageBox.information(self, "Готово", "Товар добавлен")
+            self.load_products()
+
+        except Exception:
+            show_error(self, "Ошибка при добавлении товара")
+
+    def edit_product(self):
+        try:
+            if not self.selected_product:
+                QMessageBox.warning(self, "Ошибка", "Выберите товар")
+                return
+
+            product_id = self.selected_product.product_data[0]
+
+            product = self.db_query("""
+                SELECT 
+                    article,
+                    product_name,
+                    product_description,
+                    price,
+                    stock_quantity,
+                    discount,
+                    image_path
+                FROM products
+                WHERE product_id = %s
+            """, (product_id,))
+
+            if not product:
+                QMessageBox.warning(self, "Ошибка", "Товар не найден")
+                return
+
+            product = product[0]
+
+            article = self.ask_text("Редактирование товара", "Артикул:", product[0])
+            if article is None:
+                return
+
+            name = self.ask_text("Редактирование товара", "Название:", product[1])
+            if name is None:
+                return
+
+            desc = self.ask_text("Редактирование товара", "Описание:", product[2])
+            if desc is None:
+                return
+
+            price = self.ask_float("Редактирование товара", "Цена:", product[3])
+            if price is None:
+                return
+
+            quantity = self.ask_int("Редактирование товара", "Количество:", product[4])
+            if quantity is None:
+                return
+
+            discount = self.ask_int("Редактирование товара", "Скидка:", product[5], 0, 100)
+            if discount is None:
+                return
+
+            img = self.ask_text("Редактирование товара", "Фото:", product[6] or "")
+            if img is None:
+                return
+
+            unit_id = self.choose_from_table(
+                "Единица измерения",
+                "SELECT unit_id, unit_name FROM units"
+            )
+            if unit_id is None:
+                return
+
+            category_id = self.choose_from_table(
+                "Категория товара",
+                "SELECT category_id, category_name FROM categories"
+            )
+            if category_id is None:
+                return
+
+            manufacturer_id = self.choose_from_table(
+                "Производитель",
+                "SELECT manufacturer_id, manufacturer_name FROM manufacturers"
+            )
+            if manufacturer_id is None:
+                return
+
+            supplier_id = self.choose_from_table(
+                "Поставщик",
+                "SELECT supplier_id, supplier_name FROM suppliers"
+            )
+            if supplier_id is None:
+                return
+
+            self.db_query("""
+                UPDATE products
+                SET 
+                    article = %s,
+                    product_name = %s,
+                    product_description = %s,
+                    price = %s,
+                    stock_quantity = %s,
+                    discount = %s,
+                    image_path = %s,
+                    unit_id = %s,
+                    category_id = %s,
+                    manufacturer_id = %s,
+                    supplier_id = %s
+                WHERE product_id = %s
+            """, (
+                article,
+                name,
+                desc,
+                price,
+                quantity,
+                discount,
+                img,
+                unit_id,
+                category_id,
+                manufacturer_id,
+                supplier_id,
+                product_id
+            ), True)
+
+            QMessageBox.information(self, "Готово", "Товар изменён")
+            self.load_products()
+
+        except Exception:
+            show_error(self, "Ошибка при редактировании товара")
+
+    def delete_product(self):
+        try:
+            if not self.selected_product:
+                QMessageBox.warning(self, "Ошибка", "Выберите товар")
+                return
+
+            product_id = self.selected_product.product_data[0]
+
+            count = self.db_query("""
+                SELECT COUNT(*)
+                FROM order_items
+                WHERE product_id = %s
+            """, (product_id,))[0][0]
+
+            if count > 0:
+                QMessageBox.warning(
+                    self,
+                    "Ошибка",
+                    "Нельзя удалить товар, который есть в заказе"
+                )
+                return
+
+            answer = QMessageBox.question(
+                self,
+                "Удаление",
+                "Удалить выбранный товар?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if answer == QMessageBox.StandardButton.Yes:
+                self.db_query("""
+                    DELETE FROM products
+                    WHERE product_id = %s
+                """, (product_id,), True)
+
+                QMessageBox.information(self, "Готово", "Товар удалён")
+                self.load_products()
+
+        except Exception:
+            show_error(self, "Ошибка при удалении товара")
+
+    def load_orders(self):
+        try:
+            self.clear_layout(self.orders_layout)
+            self.selected_order = None
+
+            orders = self.db_query("""
+                SELECT
+                    o.order_id,
+                    o.order_article,
+                    st.status_name,
+                    pp.address,
+                    o.order_date,
+                    o.delivery_date
+                FROM orders o
+                JOIN statuses st ON st.status_id = o.status_id
+                JOIN pickup_points pp ON pp.pickup_point_id = o.pickup_point_id
+                JOIN users u ON u.user_id = o.user_id
+                ORDER BY o.order_id
+            """)
+
+            for order in orders:
+                card = OrderCard(order, self)
+                self.orders_layout.addWidget(card)
+
+            self.orders_layout.addStretch()
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке заказов")
+
+    def select_order_card(self, card):
+        self.selected_order = card
+
+    def add_items_to_order(self, order_id):
+        try:
+            while True:
+                product_id = self.choose_from_table(
+                    "Товар в заказе",
+                    """
+                    SELECT 
+                        product_id,
+                        CONCAT(article, ' | ', product_name)
+                    FROM products
+                    ORDER BY product_name
+                    """
+                )
+
+                if product_id is None:
+                    return
+
+                count = self.ask_int("Количество товара", "Введите количество:", 1, 1, 100000)
+
+                if count is None:
+                    return
+
+                self.db_query("""
+                    INSERT INTO order_items
+                    (order_id, product_id, quantity)
+                    VALUES (%s, %s, %s)
+                """, (order_id, product_id, count), True)
+
+                answer = QMessageBox.question(
+                    self,
+                    "Товары заказа",
+                    "Добавить ещё один товар?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+
+                if answer != QMessageBox.StandardButton.Yes:
+                    break
+
+        except Exception:
+            show_error(self, "Ошибка при добавлении товаров в заказ")
+
+    def add_order(self):
+        try:
+            article = self.ask_text("Добавление заказа", "Артикул заказа:")
+            if article is None:
+                return
+
+            client_id = self.choose_from_table(
+                "Клиент",
+                """
+                SELECT 
+                    user_id,
+                    CONCAT(last_name, ' ', first_name, ' ', patronymic)
+                FROM users
+                ORDER BY last_name
+                """
+            )
+            if client_id is None:
+                return
+
+            status_id = self.choose_from_table(
+                "Статус заказа",
+                "SELECT status_id, status_name FROM statuses"
+            )
+            if status_id is None:
+                return
+
+            pickup_id = self.choose_from_table(
+                "Пункт выдачи",
+                "SELECT pickup_point_id, address FROM pickup_points"
+            )
+            if pickup_id is None:
+                return
+
+            order_date = self.ask_text("Добавление заказа", "Дата заказа YYYY-MM-DD:")
+            if order_date is None:
+                return
+
+            delivery_date = self.ask_text("Добавление заказа", "Дата доставки YYYY-MM-DD:")
+            if delivery_date is None:
+                return
+
+            conn = get_connection()
+            cur = conn.cursor()
+
+            cur.execute("""
+                INSERT INTO orders
+                (
+                    order_article,
+                    user_id,
+                    status_id,
+                    pickup_point_id,
+                    order_date,
+                    delivery_date
+                )
+                VALUES (%s,%s,%s,%s,%s,%s)
+            """, (
+                article,
+                client_id,
+                status_id,
+                pickup_id,
+                order_date,
+                delivery_date
+            ))
+
+            conn.commit()
+            order_id = cur.lastrowid
+
+            cur.close()
+            conn.close()
+
+            self.add_items_to_order(order_id)
+
+            QMessageBox.information(self, "Готово", "Заказ добавлен")
+            self.load_orders()
+
+        except Exception:
+            show_error(self, "Ошибка при добавлении заказа")
+
+    def edit_order(self):
+        try:
+            if not self.selected_order:
+                QMessageBox.warning(self, "Ошибка", "Выберите заказ")
+                return
+
+            order_id = self.selected_order.order_data[0]
+
+            order = self.db_query("""
+                SELECT
+                    order_article,
+                    order_date,
+                    delivery_date
+                FROM orders
+                WHERE order_id = %s
+            """, (order_id,))
+
+            if not order:
+                QMessageBox.warning(self, "Ошибка", "Заказ не найден")
+                return
+
+            order = order[0]
+
+            article = self.ask_text("Редактирование заказа", "Артикул заказа:", order[0])
+            if article is None:
+                return
+
+            client_id = self.choose_from_table(
+                "Клиент",
+                """
+                SELECT 
+                    user_id,
+                    CONCAT(last_name, ' ', first_name, ' ', patronymic)
+                FROM users
+                ORDER BY last_name
+                """
+            )
+            if client_id is None:
+                return
+
+            status_id = self.choose_from_table(
+                "Статус заказа",
+                "SELECT status_id, status_name FROM statuses"
+            )
+            if status_id is None:
+                return
+
+            pickup_id = self.choose_from_table(
+                "Пункт выдачи",
+                "SELECT pickup_point_id, address FROM pickup_points"
+            )
+            if pickup_id is None:
+                return
+
+            order_date = self.ask_text("Редактирование заказа", "Дата заказа:", order[1])
+            if order_date is None:
+                return
+
+            delivery_date = self.ask_text("Редактирование заказа", "Дата доставки:", order[2])
+            if delivery_date is None:
+                return
+
+            self.db_query("""
+                UPDATE orders
+                SET
+                    order_article = %s,
+                    user_id = %s,
+                    status_id = %s,
+                    pickup_point_id = %s,
+                    order_date = %s,
+                    delivery_date = %s
+                WHERE order_id = %s
+            """, (
+                article,
+                client_id,
+                status_id,
+                pickup_id,
+                order_date,
+                delivery_date,
+                order_id
+            ), True)
+
+            answer = QMessageBox.question(
+                self,
+                "Товары заказа",
+                "Изменить товары в заказе?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if answer == QMessageBox.StandardButton.Yes:
+                self.db_query("""
+                    DELETE FROM order_items
+                    WHERE order_id = %s
+                """, (order_id,), True)
+
+                self.add_items_to_order(order_id)
+
+            QMessageBox.information(self, "Готово", "Заказ изменён")
+            self.load_orders()
+
+        except Exception:
+            show_error(self, "Ошибка при редактировании заказа")
+
+    def delete_order(self):
+        try:
+            if not self.selected_order:
+                QMessageBox.warning(self, "Ошибка", "Выберите заказ")
+                return
+
+            order_id = self.selected_order.order_data[0]
+
+            answer = QMessageBox.question(
+                self,
+                "Удаление",
+                "Удалить выбранный заказ?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if answer == QMessageBox.StandardButton.Yes:
+                self.db_query("""
+                    DELETE FROM order_items
+                    WHERE order_id = %s
+                """, (order_id,), True)
+
+                self.db_query("""
+                    DELETE FROM orders
+                    WHERE order_id = %s
+                """, (order_id,), True)
+
+                QMessageBox.information(self, "Готово", "Заказ удалён")
+                self.load_orders()
+
+        except Exception:
+            show_error(self, "Ошибка при удалении заказа")
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = AdminWin()
+    win.show()
+    sys.exit(app.exec())
