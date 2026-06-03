@@ -1,1 +1,255 @@
-y
+login_ui.ui:
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>LoginWindow</class>
+ <widget class="QMainWindow" name="LoginWindow">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>420</width><height>300</height></rect></property>
+  <property name="minimumSize"><size><width>420</width><height>300</height></size></property>
+  <property name="maximumSize"><size><width>420</width><height>300</height></size></property>
+  <property name="windowTitle"><string>Авторизация</string></property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item><widget class="QLabel" name="label_title"><property name="text"><string>Авторизация</string></property><property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property></widget></item>
+    <item><widget class="QLabel" name="label_login"><property name="text"><string>Логин:</string></property></widget></item>
+    <item><widget class="QLineEdit" name="lineEdit_2"><property name="placeholderText"><string>Введите логин</string></property></widget></item>
+    <item><widget class="QLabel" name="label_password"><property name="text"><string>Пароль:</string></property></widget></item>
+    <item><widget class="QLineEdit" name="lineEdit"><property name="placeholderText"><string>Введите пароль</string></property></widget></item>
+    <item><widget class="QPushButton" name="pushButton"><property name="text"><string>Войти</string></property></widget></item>
+    <item><widget class="QPushButton" name="pushButton_2"><property name="text"><string>Войти как гость</string></property></widget></item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+
+
+
+
+
+
+
+
+
+
+
+
+main_window_ui.ui:
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect><x>0</x><y>0</y><width>700</width><height>700</height></rect>
+  </property>
+  <property name="windowTitle"><string>Магазин</string></property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout_main">
+    <item>
+     <layout class="QHBoxLayout" name="headerLayout">
+      <item><widget class="QLabel" name="label_user_text"><property name="text"><string>Пользователь:</string></property></widget></item>
+      <item><widget class="QLabel" name="label_user"><property name="text"><string>ФИО</string></property></widget></item>
+      <item><widget class="QLabel" name="label_role_text"><property name="text"><string>Роль:</string></property></widget></item>
+      <item><widget class="QLabel" name="label_role"><property name="text"><string>Роль</string></property></widget></item>
+      <item><spacer name="spacer_header"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+      <item><widget class="QPushButton" name="pushButton_exit"><property name="text"><string>Выход</string></property></widget></item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex"><number>0</number></property>
+      <widget class="QWidget" name="tab_products">
+       <attribute name="title"><string>Товары</string></attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_products">
+        <item>
+         <layout class="QHBoxLayout" name="productsTopLayout">
+          <item><widget class="QLineEdit" name="lineEdit_search"><property name="placeholderText"><string>Поиск товара</string></property></widget></item>
+          <item><widget class="QComboBox" name="comboBox_supplier"/></item>
+          <item><widget class="QComboBox" name="comboBox_sort"/></item>
+          <item><widget class="QPushButton" name="pushButton_refresh"><property name="text"><string>Обновить</string></property></widget></item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="productsButtonLayout">
+          <item><widget class="QPushButton" name="pushButton_add"><property name="text"><string>Добавить товар</string></property></widget></item>
+          <item><widget class="QPushButton" name="pushButton_edit"><property name="text"><string>Редактировать товар</string></property></widget></item>
+          <item><widget class="QPushButton" name="pushButton_delete"><property name="text"><string>Удалить товар</string></property></widget></item>
+          <item><spacer name="spacer_products"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QScrollArea" name="scrollArea_products">
+          <property name="widgetResizable"><bool>true</bool></property>
+          <widget class="QWidget" name="scrollAreaWidgetContents">
+           <property name="geometry"><rect><x>0</x><y>0</y><width>850</width><height>500</height></rect></property>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_orders">
+       <attribute name="title"><string>Заказы</string></attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_orders">
+        <item>
+         <layout class="QHBoxLayout" name="ordersButtonLayout">
+          <item><widget class="QPushButton" name="pushButton_refresh_orders"><property name="text"><string>Обновить заказы</string></property></widget></item>
+          <item><widget class="QPushButton" name="pushButton_add_order"><property name="text"><string>Добавить заказ</string></property></widget></item>
+          <item><widget class="QPushButton" name="pushButton_edit_order"><property name="text"><string>Редактировать заказ</string></property></widget></item>
+          <item><widget class="QPushButton" name="pushButton_delete_order"><property name="text"><string>Удалить заказ</string></property></widget></item>
+          <item><spacer name="spacer_orders"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QScrollArea" name="scrollArea_orders">
+          <property name="widgetResizable"><bool>true</bool></property>
+          <widget class="QWidget" name="scrollAreaWidgetContents_orders">
+           <property name="geometry"><rect><x>0</x><y>0</y><width>850</width><height>550</height></rect></property>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar"/>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+order_card.ui:
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OrderForm</class>
+ <widget class="QWidget" name="OrderForm">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>900</width><height>180</height></rect></property>
+  <property name="minimumSize"><size><width>500</width><height>180</height></size></property>
+  <property name="maximumSize"><size><width>16777215</width><height>180</height></size></property>
+  <layout class="QHBoxLayout" name="mainLayout">
+   <property name="leftMargin"><number>10</number></property>
+   <property name="topMargin"><number>10</number></property>
+   <property name="rightMargin"><number>10</number></property>
+   <property name="bottomMargin"><number>10</number></property>
+   <property name="spacing"><number>15</number></property>
+   <item>
+    <layout class="QVBoxLayout" name="leftLayout">
+     <property name="spacing"><number>8</number></property>
+     <item><widget class="QLabel" name="label_id"><property name="text"><string>Артикул заказа</string></property></widget></item>
+     <item><widget class="QLabel" name="label_status"><property name="text"><string>Статус заказа</string></property></widget></item>
+     <item><widget class="QLabel" name="label_pickup"><property name="text"><string>Адрес пункта выдачи</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+     <item><widget class="QLabel" name="label_order_date"><property name="text"><string>Дата заказа</string></property></widget></item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="label_delivery_date">
+     <property name="minimumSize"><size><width>150</width><height>0</height></size></property>
+     <property name="text"><string>Дата доставки</string></property>
+     <property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+product_card.ui:
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ProductForm</class>
+ <widget class="QWidget" name="ProductForm">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>900</width><height>200</height></rect></property>
+  <property name="minimumSize"><size><width>500</width><height>200</height></size></property>
+  <property name="maximumSize"><size><width>16777215</width><height>200</height></size></property>
+  <layout class="QHBoxLayout" name="mainLayout">
+   <property name="leftMargin"><number>10</number></property>
+   <property name="topMargin"><number>10</number></property>
+   <property name="rightMargin"><number>10</number></property>
+   <property name="bottomMargin"><number>10</number></property>
+   <property name="spacing"><number>15</number></property>
+   <item>
+    <widget class="QLabel" name="label_img">
+     <property name="minimumSize"><size><width>160</width><height>160</height></size></property>
+     <property name="maximumSize"><size><width>160</width><height>160</height></size></property>
+     <property name="text"><string>Фото</string></property>
+     <property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property>
+     <property name="scaledContents"><bool>true</bool></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="infoLayout">
+     <property name="spacing"><number>6</number></property>
+     <item><widget class="QLabel" name="label_title"><property name="text"><string>Категория | Название</string></property></widget></item>
+     <item><widget class="QLabel" name="label_description"><property name="text"><string>Описание</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
+     <item><widget class="QLabel" name="label_manufacturer"><property name="text"><string>Производитель</string></property></widget></item>
+     <item><widget class="QLabel" name="label_supplier"><property name="text"><string>Поставщик</string></property></widget></item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="rightLayout">
+     <property name="spacing"><number>8</number></property>
+     <item><widget class="QLabel" name="label_price"><property name="minimumSize"><size><width>190</width><height>0</height></size></property><property name="text"><string>Цена</string></property></widget></item>
+     <item><widget class="QLabel" name="label_quantity"><property name="text"><string>Количество</string></property></widget></item>
+     <item><widget class="QLabel" name="label_discount"><property name="text"><string>Скидка</string></property></widget></item>
+     <item><spacer name="verticalSpacer"><property name="orientation"><enum>Qt::Orientation::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
+
