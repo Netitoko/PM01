@@ -1,3 +1,126 @@
+sql:
+DROP DATABASE IF EXISTS shop_demo;
+CREATE DATABASE shop_demo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE shop_demo;
+
+CREATE TABLE roles (
+    role_id INT PRIMARY KEY AUTO_INCREMENT,
+    role_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE users (
+    user_id INT PRIMARY KEY AUTO_INCREMENT,
+    last_name VARCHAR(100) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    patronymic VARCHAR(100),
+    login VARCHAR(100) NOT NULL UNIQUE,
+    passwords VARCHAR(100) NOT NULL,
+    role_id INT NOT NULL,
+    FOREIGN KEY (role_id) REFERENCES roles(role_id)
+);
+
+CREATE TABLE statuses (
+    status_id INT PRIMARY KEY AUTO_INCREMENT,
+    status_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE cities (
+    city_id INT PRIMARY KEY AUTO_INCREMENT,
+    city_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE pickup_points (
+    pickup_point_id INT PRIMARY KEY AUTO_INCREMENT,
+    address VARCHAR(255) NOT NULL,
+    city_id INT NOT NULL,
+    FOREIGN KEY (city_id) REFERENCES cities(city_id)
+);
+
+CREATE TABLE units (
+    unit_id INT PRIMARY KEY AUTO_INCREMENT,
+    unit_name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE categories (
+    category_id INT PRIMARY KEY AUTO_INCREMENT,
+    category_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE manufacturers (
+    manufacturer_id INT PRIMARY KEY AUTO_INCREMENT,
+    manufacturer_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE suppliers (
+    supplier_id INT PRIMARY KEY AUTO_INCREMENT,
+    supplier_name VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE products (
+    product_id INT PRIMARY KEY AUTO_INCREMENT,
+    article VARCHAR(100) NOT NULL UNIQUE,
+    product_name VARCHAR(255) NOT NULL,
+    product_description TEXT,
+    price DECIMAL(10,2) NOT NULL,
+    stock_quantity INT NOT NULL DEFAULT 0,
+    discount INT DEFAULT 0,
+    image_path VARCHAR(255),
+
+    unit_id INT NOT NULL,
+    category_id INT NOT NULL,
+    manufacturer_id INT NOT NULL,
+    supplier_id INT NOT NULL,
+
+    FOREIGN KEY (unit_id) REFERENCES units(unit_id),
+    FOREIGN KEY (category_id) REFERENCES categories(category_id),
+    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(manufacturer_id),
+    FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id)
+);
+
+CREATE TABLE orders (
+    order_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_article VARCHAR(100) NOT NULL,
+    order_date DATE NOT NULL,
+    delivery_date DATE NOT NULL,
+
+    user_id INT NOT NULL,
+    pickup_point_id INT NOT NULL,
+    status_id INT NOT NULL,
+
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (pickup_point_id) REFERENCES pickup_points(pickup_point_id),
+    FOREIGN KEY (status_id) REFERENCES statuses(status_id)
+);
+
+CREATE TABLE order_items (
+    order_item_id INT PRIMARY KEY AUTO_INCREMENT,
+    order_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+
+    FOREIGN KEY (order_id) REFERENCES orders(order_id),
+    FOREIGN KEY (product_id) REFERENCES products(product_id)
+);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 db.py
 import pymysql
 import traceback
@@ -32,7 +155,109 @@ def show_error(parent, text="Произошла ошибка"):
 
 
 
-admin.py
+
+
+login.py:
+import sys
+from PyQt6.QtWidgets import QApplication, QMainWindow, QLineEdit, QMessageBox
+from db import get_connection, show_error
+from ui.login_ui import Ui_LoginWindow
+
+from admin_win import AdminWin
+from manager_win import ManagerWin
+from user_win import UserWin
+from guest_win import GuestWin
+
+class LoginWin(QMainWindow, Ui_LoginWindow):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+
+        self.lineEdit.setEchoMode(QLineEdit.EchoMode.Password)
+
+        self.pushButton.clicked.connect(self.try_login)
+        self.pushButton_2.clicked.connect(self.next_guest)
+
+    def try_login(self):
+        login = self.lineEdit_2.text().strip()
+        password = self.lineEdit.text().strip()
+
+        if not login or not password:
+            QMessageBox.warning(self, "Ошибка", "Введите логин и пароль")
+            return
+
+        try:
+            conn = get_connection()
+            cur = conn.cursor()
+
+            cur.execute("""
+                SELECT
+                    u.user_id,
+                    u.last_name,
+                    u.first_name,
+                    u.patronymic,
+                    r.role_name
+                FROM users u
+                JOIN roles r ON r.role_id = u.role_id
+                WHERE u.login = %s AND u.passwords = %s
+            """, (login, password))
+
+            row = cur.fetchone()
+
+            cur.close()
+            conn.close()
+
+            if row is None:
+                QMessageBox.warning(self, "Ошибка", "Неверный логин или пароль")
+                return
+
+            user_role = row[4]
+
+            if user_role == "Администратор":
+                self.next_window = AdminWin(row)
+
+            elif user_role == "Менеджер":
+                self.next_window = ManagerWin(row)
+
+            elif user_role == "Авторизованный клиент" or user_role == "Авторизированный клиент":
+                self.next_window = UserWin(row)
+
+            else:
+                QMessageBox.warning(self, "Ошибка", "Неизвестная роль пользователя")
+                return
+
+            self.next_window.show()
+            self.close()
+
+        except Exception:
+            show_error(self, "Ошибка при авторизации")
+
+    def next_guest(self):
+        self.next_window = GuestWin()
+        self.next_window.show()
+        self.close()
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = LoginWin()
+    win.show()
+    sys.exit(app.exec())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+admin.py:
 import sys
 
 from PyQt6.QtWidgets import (
@@ -808,5 +1033,722 @@ class AdminWin(QMainWindow, Ui_MainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = AdminWin()
+    win.show()
+    sys.exit(app.exec())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+product_card.py:
+import os
+import traceback
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QMessageBox, QLabel
+from PyQt6.QtGui import QPixmap
+from ui.product_card_ui import Ui_ProductForm
+
+class ProductCard(QWidget, Ui_ProductForm):
+    def __init__(self, product_data, parent_window=None):
+        super().__init__()
+        self.setupUi(self)
+
+        self.product_data = product_data
+        self.parent_window = parent_window
+
+        self.setMaximumHeight(200)
+        self.setMinimumHeight(200)
+
+        for label in self.findChildren(QLabel):
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        self.fill_card()
+
+    def show_error(self, error):
+        QMessageBox.critical(
+            self,
+            "Ошибка",
+            f"Ошибка: {error}\n{traceback.format_exc()}"
+        )
+
+    def fill_card(self):
+        try:
+            category = self.product_data[1]
+            name = self.product_data[2]
+            description = self.product_data[3]
+            manufacturer = self.product_data[4]
+            supplier = self.product_data[5]
+            price = self.product_data[6]
+            quantity = self.product_data[7]
+            unit = self.product_data[8]
+            discount = self.product_data[9]
+            img_path = self.product_data[10]
+
+            self.label_title.setText(f"{category} | {name}")
+            self.label_description.setText(f"Описание: {description}")
+            self.label_manufacturer.setText(f"Производитель: {manufacturer}")
+            self.label_supplier.setText(f"Поставщик: {supplier}")
+            self.label_price.setText(self.get_price_text(price, discount))
+            self.label_quantity.setText(f"Количество на складе: {quantity} {unit}")
+            self.label_discount.setText(f"Скидка: {discount or 0}%")
+
+            self.set_card_color(discount, quantity)
+            self.load_img(img_path)
+
+        except Exception as error:
+            self.show_error(error)
+
+    def get_price_text(self, price, discount):
+        price = float(price)
+        discount = int(discount) if discount else 0
+
+        if discount > 0:
+            new_price = price - price * discount / 100
+            return (
+                f"<span style='color:red; text-decoration: line-through;'>"
+                f"{price:.2f} руб.</span><br>"
+                f"<span style='color:black;'>Цена со скидкой: {new_price:.2f} руб.</span>"
+            )
+
+        return f"Цена: {price:.2f} руб."
+
+    def set_card_color(self, discount, quantity):
+        discount = int(discount) if discount else 0
+        quantity = int(quantity) if quantity else 0
+
+        if quantity == 0:
+            bg = "#bde0ff"
+            text = "black"
+        elif discount > 15:
+            bg = "#2E8B57"
+            text = "white"
+        else:
+            bg = "white"
+            text = "black"
+
+        self.setStyleSheet(f"""
+            QWidget {{
+                background-color: {bg};
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+            }}
+            QLabel {{
+                color: {text};
+                border: none;
+            }}
+        """)
+
+    def load_img(self, img_path):
+        try:
+            if img_path and not str(img_path).startswith("imgs/"):
+                img_path = os.path.join("imgs", str(img_path))
+
+            if not img_path or not os.path.exists(img_path):
+                img_path = "imgs/picture.png"
+
+            self.label_img.setPixmap(QPixmap(img_path))
+            self.label_img.setScaledContents(True)
+
+        except Exception as error:
+            self.show_error(error)
+
+    def mousePressEvent(self, event):
+        if self.parent_window:
+            self.parent_window.select_product_card(self)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+order_card.py:
+import traceback
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QMessageBox, QLabel
+from ui.order_card_ui import Ui_OrderForm
+
+class OrderCard(QWidget, Ui_OrderForm):
+    def __init__(self, order_data, parent_window=None):
+        super().__init__()
+        self.setupUi(self)
+
+        self.order_data = order_data
+        self.parent_window = parent_window
+
+        self.setMaximumHeight(200)
+        self.setMinimumHeight(200)
+
+        for label in self.findChildren(QLabel):
+            label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+
+        self.fill_card()
+
+    def show_error(self, error):
+        QMessageBox.critical(
+            self,
+            "Ошибка",
+            f"Ошибка: {error}\n{traceback.format_exc()}"
+        )
+
+    def fill_card(self):
+        try:
+            article = self.order_data[1]
+            status = self.order_data[2]
+            pickup = self.order_data[3]
+            order_date = self.order_data[4]
+            delivery_date = self.order_data[5]
+
+            self.label_id.setText(f"Артикул заказа: {article}")
+            self.label_status.setText(f"Статус заказа: {status}")
+            self.label_pickup.setText(f"Адрес пункта выдачи: {pickup}")
+            self.label_order_date.setText(f"Дата заказа: {order_date}")
+            self.label_delivery_date.setText(f"Дата доставки:\n{delivery_date}")
+
+        except Exception as error:
+            self.show_error(error)
+
+    def mousePressEvent(self, event):
+        if self.parent_window:
+            self.parent_window.select_order_card(self)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+manager_wiin.py:
+import sys
+
+from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout
+
+from db import get_connection, show_error
+from ui.main_window_ui import Ui_MainWindow
+from product_card import ProductCard
+from order_card import OrderCard
+
+
+class ManagerWin(QMainWindow, Ui_MainWindow):
+    def __init__(self, user=None):
+        super().__init__()
+        self.setupUi(self)
+
+        if user is None:
+            user = (0, "Тестовый", "Менеджер", "", "Менеджер")
+
+        self.user = user
+        self.products_layout = QVBoxLayout(self.scrollAreaWidgetContents)
+        self.orders_layout = QVBoxLayout(self.scrollAreaWidgetContents_orders)
+
+        self.setup_manager_interface()
+        self.init_signals()
+
+        self.load_products()
+        self.load_orders()
+
+    def db_query(self, query, params=()):
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return rows
+
+    def setup_manager_interface(self):
+        try:
+            self.label_user.setText(f"{self.user[1]} {self.user[2]} {self.user[3]}")
+            self.label_role.setText(self.user[4])
+
+            self.comboBox_sort.clear()
+            self.comboBox_sort.addItems([
+                "Без сортировки",
+                "По количеству по возрастанию",
+                "По количеству по убыванию"
+            ])
+
+            self.comboBox_supplier.clear()
+            self.comboBox_supplier.addItem("Все поставщики", 0)
+
+            suppliers = self.db_query("""
+                SELECT supplier_id, supplier_name
+                FROM suppliers
+                ORDER BY supplier_name
+            """)
+
+            for supplier in suppliers:
+                self.comboBox_supplier.addItem(supplier[1], supplier[0])
+
+            self.pushButton_add.hide()
+            self.pushButton_edit.hide()
+            self.pushButton_delete.hide()
+
+            self.pushButton_add_order.hide()
+            self.pushButton_edit_order.hide()
+            self.pushButton_delete_order.hide()
+
+        except Exception:
+            show_error(self, "Ошибка при настройке окна менеджера")
+
+    def init_signals(self):
+        self.lineEdit_search.textChanged.connect(self.load_products)
+        self.comboBox_supplier.currentIndexChanged.connect(self.load_products)
+        self.comboBox_sort.currentIndexChanged.connect(self.load_products)
+
+        self.pushButton_refresh.clicked.connect(self.refresh_products)
+        self.pushButton_refresh_orders.clicked.connect(self.load_orders)
+
+        self.pushButton_exit.clicked.connect(self.close)
+
+    def clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def load_products(self):
+        try:
+            self.clear_layout(self.products_layout)
+
+            search = self.lineEdit_search.text().strip()
+            supplier_id = self.comboBox_supplier.currentData()
+            sort_text = self.comboBox_sort.currentText()
+
+            query = """
+                SELECT
+                    p.product_id,
+                    c.category_name,
+                    p.product_name,
+                    p.product_description,
+                    m.manufacturer_name,
+                    s.supplier_name,
+                    p.price,
+                    p.stock_quantity,
+                    u.unit_name,
+                    p.discount,
+                    p.image_path
+                FROM products p
+                JOIN categories c ON c.category_id = p.category_id
+                JOIN manufacturers m ON m.manufacturer_id = p.manufacturer_id
+                JOIN suppliers s ON s.supplier_id = p.supplier_id
+                JOIN units u ON u.unit_id = p.unit_id
+                WHERE 1=1
+            """
+
+            params = []
+
+            if search:
+                query += """
+                    AND (
+                        p.product_name LIKE %s
+                        OR p.product_description LIKE %s
+                        OR p.article LIKE %s
+                        OR c.category_name LIKE %s
+                        OR m.manufacturer_name LIKE %s
+                        OR s.supplier_name LIKE %s
+                    )
+                """
+                text = f"%{search}%"
+                params.extend([text, text, text, text, text, text])
+
+            if supplier_id != 0:
+                query += " AND p.supplier_id = %s"
+                params.append(supplier_id)
+
+            if sort_text == "По количеству по возрастанию":
+                query += " ORDER BY p.stock_quantity ASC"
+            elif sort_text == "По количеству по убыванию":
+                query += " ORDER BY p.stock_quantity DESC"
+            else:
+                query += " ORDER BY p.product_id"
+
+            products = self.db_query(query, params)
+
+            for product in products:
+                card = ProductCard(product, self)
+                self.products_layout.addWidget(card)
+
+            self.products_layout.addStretch()
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке товаров")
+
+    def refresh_products(self):
+        self.lineEdit_search.clear()
+        self.comboBox_supplier.setCurrentIndex(0)
+        self.comboBox_sort.setCurrentIndex(0)
+        self.load_products()
+
+    def load_orders(self):
+        try:
+            self.clear_layout(self.orders_layout)
+
+            orders = self.db_query("""
+                SELECT
+                    o.order_id,
+                    o.order_article,
+                    st.status_name,
+                    pp.address,
+                    o.order_date,
+                    o.delivery_date
+                FROM orders o
+                JOIN statuses st ON st.status_id = o.status_id
+                JOIN pickup_points pp ON pp.pickup_point_id = o.pickup_point_id
+                JOIN users u ON u.user_id = o.user_id
+                ORDER BY o.order_id
+            """)
+
+            for order in orders:
+                card = OrderCard(order, self)
+                self.orders_layout.addWidget(card)
+
+            self.orders_layout.addStretch()
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке заказов")
+
+    def select_product_card(self, card):
+        pass
+
+    def select_order_card(self, card):
+        pass
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = ManagerWin()
+    win.show()
+    sys.exit(app.exec())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+user_win.py:
+import sys
+
+from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout
+
+from db import get_connection, show_error
+from ui.main_window_ui import Ui_MainWindow
+from product_card import ProductCard
+
+
+class UserWin(QMainWindow, Ui_MainWindow):
+    def __init__(self, user=None):
+        super().__init__()
+        self.setupUi(self)
+
+        if user is None:
+            user = (0, "Тестовый", "Клиент", "", "Авторизованный клиент")
+
+        self.user = user
+        self.products_layout = QVBoxLayout(self.scrollAreaWidgetContents)
+
+        self.setup_user_interface()
+        self.load_products()
+
+    def db_query(self, query, params=()):
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return rows
+
+    def setup_user_interface(self):
+        try:
+            self.label_user.setText(f"{self.user[1]} {self.user[2]} {self.user[3]}")
+            self.label_role.setText(self.user[4])
+
+            self.lineEdit_search.hide()
+            self.comboBox_supplier.hide()
+            self.comboBox_sort.hide()
+            self.pushButton_refresh.hide()
+
+            self.pushButton_add.hide()
+            self.pushButton_edit.hide()
+            self.pushButton_delete.hide()
+
+            self.tabWidget.removeTab(1)
+
+            self.pushButton_exit.clicked.connect(self.close)
+
+        except Exception:
+            show_error(self, "Ошибка при настройке окна клиента")
+
+    def clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def load_products(self):
+        try:
+            self.clear_layout(self.products_layout)
+
+            query = """
+                SELECT
+                    p.product_id,
+                    c.category_name,
+                    p.product_name,
+                    p.product_description,
+                    m.manufacturer_name,
+                    s.supplier_name,
+                    p.price,
+                    p.stock_quantity,
+                    u.unit_name,
+                    p.discount,
+                    p.image_path
+                FROM products p
+                JOIN categories c ON c.category_id = p.category_id
+                JOIN manufacturers m ON m.manufacturer_id = p.manufacturer_id
+                JOIN suppliers s ON s.supplier_id = p.supplier_id
+                JOIN units u ON u.unit_id = p.unit_id
+                ORDER BY p.product_id
+            """
+
+            products = self.db_query(query)
+
+            for product in products:
+                card = ProductCard(product, self)
+                self.products_layout.addWidget(card)
+
+            self.products_layout.addStretch()
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке товаров")
+
+    def select_product_card(self, card):
+        pass
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = UserWin()
+    win.show()
+    sys.exit(app.exec())
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+guest_win.py:
+import sys
+
+from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout
+
+from db import get_connection, show_error
+from ui.main_window_ui import Ui_MainWindow
+from product_card import ProductCard
+
+
+class GuestWin(QMainWindow, Ui_MainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+
+        self.products_layout = QVBoxLayout(self.scrollAreaWidgetContents)
+
+        self.setup_guest_interface()
+        self.load_products()
+
+    def db_query(self, query, params=()):
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        cur.close()
+        conn.close()
+
+        return rows
+
+    def setup_guest_interface(self):
+        try:
+            self.label_user.setText("Гость")
+            self.label_role.setText("Гость")
+
+            self.lineEdit_search.hide()
+            self.comboBox_supplier.hide()
+            self.comboBox_sort.hide()
+            self.pushButton_refresh.hide()
+
+            self.pushButton_add.hide()
+            self.pushButton_edit.hide()
+            self.pushButton_delete.hide()
+
+            self.tabWidget.removeTab(1)
+
+            self.pushButton_exit.clicked.connect(self.close)
+
+        except Exception:
+            show_error(self, "Ошибка при настройке окна гостя")
+
+    def clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+    def load_products(self):
+        try:
+            self.clear_layout(self.products_layout)
+
+            query = """
+                SELECT
+                    p.product_id,
+                    c.category_name,
+                    p.product_name,
+                    p.product_description,
+                    m.manufacturer_name,
+                    s.supplier_name,
+                    p.price,
+                    p.stock_quantity,
+                    u.unit_name,
+                    p.discount,
+                    p.image_path
+                FROM products p
+                JOIN categories c ON c.category_id = p.category_id
+                JOIN manufacturers m ON m.manufacturer_id = p.manufacturer_id
+                JOIN suppliers s ON s.supplier_id = p.supplier_id
+                JOIN units u ON u.unit_id = p.unit_id
+                ORDER BY p.product_id
+            """
+
+            products = self.db_query(query)
+
+            for product in products:
+                card = ProductCard(product, self)
+                self.products_layout.addWidget(card)
+
+            self.products_layout.addStretch()
+
+        except Exception:
+            show_error(self, "Ошибка при загрузке товаров")
+
+    def select_product_card(self, card):
+        pass
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    win = GuestWin()
     win.show()
     sys.exit(app.exec())
