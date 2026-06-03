@@ -1,7 +1,7 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QLineEdit, QMessageBox
 from db import get_connection, show_error
-from demo_4.login_ui import Ui_LoginWindow
+from ui.login_ui import Ui_LoginWindow
 
 from admin_win import AdminWin
 from manager_win import ManagerWin
@@ -32,14 +32,14 @@ class LoginWin(QMainWindow, Ui_LoginWindow):
 
             cur.execute("""
                 SELECT
-                    p.id_пользователя,
-                    p.фамилия,
-                    p.имя,
-                    p.отчество,
-                    r.название_роли
-                FROM пользователи p
-                JOIN роли r ON r.id_роли = p.id_роли
-                WHERE p.логин = %s AND p.пароль = %s
+                    u.user_id,
+                    u.last_name,
+                    u.first_name,
+                    u.patronymic,
+                    r.role_name
+                FROM users u
+                JOIN roles r ON r.role_id = u.role_id
+                WHERE u.login = %s AND u.passwords = %s
             """, (login, password))
 
             row = cur.fetchone()
@@ -58,8 +58,8 @@ class LoginWin(QMainWindow, Ui_LoginWindow):
 
             elif user_role == "Менеджер":
                 self.next_window = ManagerWin(row)
-
-            elif user_role == "Авторизованный клиент":
+                
+            elif user_role == "Авторизованный клиент" or user_role == "Авторизированный клиент":
                 self.next_window = UserWin(row)
 
             else:
